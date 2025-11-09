@@ -1,100 +1,79 @@
 'use client';
 
-import { useState } from 'react';
-import { IconButton, Menu, MenuItem, Avatar } from '@mui/material';
-import { AccountCircle, Settings, Logout, HelpOutline } from '@mui/icons-material';
-//import RealtimeNotificationSystem from './RealtimeNotificationSystem';
+import React, { useState } from 'react';
+import NotificationsIcon from '@mui/icons-material/Notifications';
+import Badge from '@mui/material/Badge';
+import IconButton from '@mui/material/IconButton';
+import UserAvatar from '../shared/UserAvatar';
+import NotificationPopup from './NotificationPopup';
 
 export default function TopNavBar() {
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const isMenuOpen = Boolean(anchorEl);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(3);
 
-  const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleMenuClose = () => {
-    setAnchorEl(null);
-  };
-
-  const handleLogout = () => {
-    // TODO: Implement logout logic
-    console.log('Logging out...');
-    handleMenuClose();
+  // TODO: Replace with actual user data from auth context
+  const currentUser = {
+    name: 'John Anderson',
+    avatarUrl: '',
+    status: 'online' as const,
   };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-gray-200 z-50 flex items-center justify-between px-6 shadow-sm">
-      {/* Logo & Brand */}
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-xl">
-          NS
-        </div>
-        <div>
-          <h1 className="text-xl font-bold text-gray-800">NPSketchFlow</h1>
-          <p className="text-xs text-gray-500">Study Buddy Platform</p>
-        </div>
-      </div>
-
-      {/* Right Section */}
-      <div className="flex items-center gap-2">
-        {/* Help Button */}
-        <IconButton>
-          <HelpOutline />
-        </IconButton>
-
-        {/* Notification System */}
-        <RealtimeNotificationSystem />
-
-        {/* Profile Menu */}
-        <IconButton onClick={handleProfileMenuOpen}>
-          <Avatar
-            sx={{ width: 36, height: 36 }}
-            className="bg-gradient-to-br from-blue-500 to-purple-500"
-          >
-            <AccountCircle />
-          </Avatar>
-        </IconButton>
-
-        <Menu
-          anchorEl={anchorEl}
-          open={isMenuOpen}
-          onClose={handleMenuClose}
-          anchorOrigin={{
-            vertical: 'bottom',
-            horizontal: 'right',
-          }}
-          transformOrigin={{
-            vertical: 'top',
-            horizontal: 'right',
-          }}
-          PaperProps={{
-            className: 'mt-2 min-w-[200px]',
-          }}
-        >
-          <div className="px-4 py-3 border-b border-gray-200">
-            <p className="font-semibold text-gray-800">John Doe</p>
-            <p className="text-sm text-gray-500">john.doe@example.com</p>
+    <>
+      <nav className="fixed top-0 right-0 left-64 h-16 bg-white border-b border-gray-200 shadow-sm z-50">
+        <div className="h-full px-6 flex items-center justify-between">
+          {/* Page Title */}
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">
+              Voice Messages
+            </h2>
+            <p className="text-xs text-gray-500">
+              Communicate with your team in real-time
+            </p>
           </div>
-          
-          <MenuItem onClick={handleMenuClose} className="py-3">
-            <AccountCircle className="mr-3 text-gray-600" />
-            Profile
-          </MenuItem>
-          
-          <MenuItem onClick={handleMenuClose} className="py-3">
-            <Settings className="mr-3 text-gray-600" />
-            Settings
-          </MenuItem>
-          
-          <div className="border-t border-gray-200" />
-          
-          <MenuItem onClick={handleLogout} className="py-3 text-red-600">
-            <Logout className="mr-3" />
-            Logout
-          </MenuItem>
-        </Menu>
-      </div>
-    </nav>
+
+          {/* Right side: Notifications & Profile */}
+          <div className="flex items-center space-x-4">
+            {/* Notification Bell */}
+            <div className="relative">
+              <IconButton
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="text-gray-600 hover:bg-gray-100"
+              >
+                <Badge badgeContent={unreadCount} color="error">
+                  <NotificationsIcon />
+                </Badge>
+              </IconButton>
+            </div>
+
+            {/* User Profile */}
+            <button className="flex items-center space-x-2 hover:bg-gray-100 rounded-lg px-3 py-2 transition-colors">
+              <UserAvatar
+                name={currentUser.name}
+                avatarUrl={currentUser.avatarUrl}
+                status={currentUser.status}
+                size="sm"
+              />
+              <div className="text-left hidden sm:block">
+                <p className="text-sm font-medium text-gray-700">
+                  {currentUser.name}
+                </p>
+                <p className="text-xs text-green-600 capitalize">
+                  {currentUser.status}
+                </p>
+              </div>
+            </button>
+          </div>
+        </div>
+      </nav>
+
+      {/* Notification Popup */}
+      {showNotifications && (
+        <NotificationPopup
+          onClose={() => setShowNotifications(false)}
+          onClearUnread={() => setUnreadCount(0)}
+        />
+      )}
+    </>
   );
 }
