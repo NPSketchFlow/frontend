@@ -6,16 +6,33 @@ import Badge from '@mui/material/Badge';
 import IconButton from '@mui/material/IconButton';
 import UserAvatar from '../shared/UserAvatar';
 import NotificationPopup from './NotificationPopup';
+import useNotifications from '../../hooks/useNotifications';
 
 export default function TopNavBar() {
   const [showNotifications, setShowNotifications] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(3);
-
-  // TODO: Replace with actual user data from auth context
   const currentUser = {
+    id: process.env.NEXT_PUBLIC_USER_ID ?? 'demo-user',
     name: 'John Anderson',
     avatarUrl: '',
     status: 'online' as const,
+  };
+
+  const {
+    notifications,
+    unreadCount,
+    isLoading,
+    error,
+    refresh,
+    markAllAsRead,
+    markAsRead,
+  } = useNotifications(currentUser.id);
+
+  const toggleNotifications = () => {
+    const nextState = !showNotifications;
+    setShowNotifications(nextState);
+    if (nextState) {
+      void refresh();
+    }
   };
 
   return (
@@ -37,7 +54,7 @@ export default function TopNavBar() {
             {/* Notification Bell */}
             <div className="relative">
               <IconButton
-                onClick={() => setShowNotifications(!showNotifications)}
+                onClick={toggleNotifications}
                 className="text-gray-600 hover:bg-gray-100"
               >
                 <Badge badgeContent={unreadCount} color="error">
@@ -70,8 +87,14 @@ export default function TopNavBar() {
       {/* Notification Popup */}
       {showNotifications && (
         <NotificationPopup
+          notifications={notifications}
+          unreadCount={unreadCount}
+          isLoading={isLoading}
+          error={error}
           onClose={() => setShowNotifications(false)}
-          onClearUnread={() => setUnreadCount(0)}
+          onMarkAllRead={() => void markAllAsRead()}
+          onRefresh={() => void refresh()}
+          onNotificationClick={(notificationId) => void markAsRead(notificationId)}
         />
       )}
     </>

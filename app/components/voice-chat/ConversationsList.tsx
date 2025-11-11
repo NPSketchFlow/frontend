@@ -1,170 +1,165 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import SearchInput from '../shared/SearchInput';
-import UserAvatar from '../shared/UserAvatar';
+import UserAvatar, { OnlineStatus } from '../shared/UserAvatar';
 import GroupIcon from '@mui/icons-material/Group';
-import PersonIcon from '@mui/icons-material/Person';
+import { type UserResponse, type VoiceChatResponse } from '../../services/api';
 
-interface Conversation {
-  id: string;
-  name: string;
-  type: 'direct' | 'group';
-  avatarUrl?: string;
-  lastMessage?: string;
-  lastMessageTime?: Date;
-  unreadCount: number;
-  isOnline?: boolean;
+interface ConversationsListProps {
+  users: UserResponse[];
+  currentUserId: string;
+  selectedUserId: string | null;
+  onSelect: (userId: string | null) => void;
+  conversationSummaries: Record<string, VoiceChatResponse | undefined>;
+  isLoading?: boolean;
 }
 
-// TODO: Replace with actual conversations from UDP service
-const DUMMY_CONVERSATIONS: Conversation[] = [
-  {
-    id: 'conv-1',
-    name: 'Team Standup',
-    type: 'group',
-    lastMessage: 'Alice: Great work everyone!',
-    lastMessageTime: new Date(Date.now() - 600000),
-    unreadCount: 3,
-  },
-  {
-    id: 'conv-2',
-    name: 'Alice Johnson',
-    type: 'direct',
-    avatarUrl: '',
-    lastMessage: 'Hey, did you see my message?',
-    lastMessageTime: new Date(Date.now() - 1800000),
-    unreadCount: 1,
-    isOnline: true,
-  },
-  {
-    id: 'conv-3',
-    name: 'Project Discussion',
-    type: 'group',
-    lastMessage: 'Bob: I will handle that task',
-    lastMessageTime: new Date(Date.now() - 3600000),
-    unreadCount: 0,
-  },
-  {
-    id: 'conv-4',
-    name: 'Bob Smith',
-    type: 'direct',
-    avatarUrl: '',
-    lastMessage: 'Thanks for the update!',
-    lastMessageTime: new Date(Date.now() - 7200000),
-    unreadCount: 0,
-    isOnline: true,
-  },
-];
+interface ConversationItem {
+  id: string;
+  name: string;
+  status: OnlineStatus;
+  lastMessage: string;
+  lastTimestamp: number;
+}
 
-const formatTime = (date?: Date): string => {
-  if (!date) return '';
-  
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMs / 3600000);
-  
-  if (diffMins < 1) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m`;
-  if (diffHours < 24) return `${diffHours}h`;
-  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+const mapStatus = (status?: string): OnlineStatus => {
+  switch ((status ?? '').toUpperCase()) {
+    case 'ONLINE':
+      return 'online';
+    case 'AWAY':
+      return 'away';
+    default:
+      return 'offline';
+  }
 };
 
-export default function ConversationsList() {
-  const [conversations] = useState<Conversation[]>(DUMMY_CONVERSATIONS);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedConversation, setSelectedConversation] = useState<string | null>(
-    conversations[0]?.id || null
-  );
+const formatTimestamp = (timestamp: number | undefined): string => {
+  if (!timestamp) {
+    return '';
+  }
+  const date = new Date(timestamp);
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
 
-  const filteredConversations = conversations.filter((conv) =>
-    conv.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+export default function ConversationsList({
+  users,
+  currentUserId,
+  selectedUserId,
+  onSelect,
+  conversationSummaries,
+  isLoading = false,
+}: ConversationsListProps) {
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const conversations = useMemo<ConversationItem[]>(() => {
+    return users
+      .filter((user) => user.userId !== currentUserId)
+      .map((user) => {
+        const summary = conversationSummaries[user.userId];
+        const lastTimestamp = summary?.timestamp ?? 0;
+        let lastMessage = 'No messages yet';
+
+        if (summary) {
+          const isOutgoing = summary.senderId === currentUserId;
+          lastMessage = isOutgoing ? 'You sent a voice note' : `${user.username || user.userId} sent a voice note`;
+        }
+
+        return {
+          id: user.userId,
+          name: user.username || user.userId,
+          status: mapStatus(user.status),
+          lastMessage,
+          lastTimestamp,
+        } satisfies ConversationItem;
+      })
+      .sort((a, b) => {
+        if (a.lastTimestamp === b.lastTimestamp) {
+          return a.name.localeCompare(b.name);
+        }
+        return b.lastTimestamp - a.lastTimestamp;
+      });
+  }, [users, currentUserId, conversationSummaries]);
+
+  const filteredConversations = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return conversations;
+    return conversations.filter((conversation) =>
+      conversation.name.toLowerCase().includes(query) || conversation.id.toLowerCase().includes(query),
+    );
+  }, [conversations, searchQuery]);
+
+  const handleSelect = (conversation: ConversationItem) => {
+    onSelect(conversation.id);
+  };
 
   return (
     <div className="flex flex-col h-full bg-white border-r border-gray-200">
-      {/* Header */}
       <div className="shrink-0 px-4 py-4 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">
-          Conversations
-        </h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-3">Conversations</h3>
         <SearchInput
-          placeholder="Search conversations..."
+          placeholder="Search teammates..."
           value={searchQuery}
           onChange={setSearchQuery}
+          disabled={isLoading || users.length === 0}
         />
       </div>
 
-      {/* Conversations List */}
       <div className="flex-1 overflow-y-auto">
-        {filteredConversations.length === 0 ? (
-          <div className="px-4 py-8 text-center">
-            <p className="text-sm text-gray-500">
-              No conversations found
-            </p>
+        {isLoading ? (
+          <div className="px-4 py-8 text-center text-sm text-gray-500">Loading conversations...</div>
+        ) : filteredConversations.length === 0 ? (
+          <div className="px-4 py-8 text-center text-sm text-gray-500">
+            No conversations yet
           </div>
         ) : (
           <div className="py-2">
-            {filteredConversations.map((conversation) => (
-              <button
-                key={conversation.id}
-                onClick={() => setSelectedConversation(conversation.id)}
-                className={`w-full flex items-center space-x-3 px-4 py-3 transition-colors ${
-                  selectedConversation === conversation.id
-                    ? 'bg-blue-50 border-l-4 border-blue-600'
-                    : 'hover:bg-gray-50 border-l-4 border-transparent'
-                }`}
-              >
-                {/* Avatar or Group Icon */}
-                <div className="shrink-0">
-                  {conversation.type === 'group' ? (
-                    <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
-                      <GroupIcon className="text-purple-600" />
-                    </div>
-                  ) : (
+            {filteredConversations.map((conversation) => {
+              const isSelected = selectedUserId === conversation.id;
+              return (
+                <button
+                  key={conversation.id}
+                  onClick={() => handleSelect(conversation)}
+                  className={`w-full flex items-center space-x-3 px-4 py-3 transition-colors ${
+                    isSelected ? 'bg-blue-50 border-l-4 border-blue-600' : 'hover:bg-gray-50 border-l-4 border-transparent'
+                  }`}
+                >
+                  <div className="shrink-0">
                     <UserAvatar
                       name={conversation.name}
-                      avatarUrl={conversation.avatarUrl}
-                      status={conversation.isOnline ? 'online' : 'offline'}
+                      avatarUrl=""
+                      status={conversation.status}
                       size="md"
                     />
-                  )}
-                </div>
+                  </div>
 
-                {/* Content */}
-                <div className="flex-1 min-w-0 text-left">
-                  <div className="flex items-center justify-between mb-1">
-                    <h4 className="text-sm font-semibold text-gray-900 truncate">
-                      {conversation.name}
-                    </h4>
-                    {conversation.lastMessageTime && (
+                  <div className="flex-1 min-w-0 text-left">
+                    <div className="flex items-center justify-between mb-1">
+                      <h4 className="text-sm font-semibold text-gray-900 truncate">
+                        {conversation.name}
+                      </h4>
                       <span className="text-xs text-gray-500 shrink-0 ml-2">
-                        {formatTime(conversation.lastMessageTime)}
+                        {formatTimestamp(conversation.lastTimestamp)}
                       </span>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between">
+                    </div>
                     <p className="text-sm text-gray-600 truncate">
-                      {conversation.lastMessage || 'No messages yet'}
+                      {conversation.lastMessage}
                     </p>
-                    {conversation.unreadCount > 0 && (
-                      <span className="shrink-0 ml-2 px-2 py-0.5 text-xs font-semibold text-white bg-blue-600 rounded-full">
-                        {conversation.unreadCount}
-                      </span>
-                    )}
                   </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* Footer - New Conversation Button */}
       <div className="shrink-0 px-4 py-3 border-t border-gray-200">
-        <button className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
-          <PersonIcon fontSize="small" />
+        <button
+          onClick={() => onSelect(null)}
+          className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors disabled:opacity-50"
+          disabled={users.filter((user) => user.userId !== currentUserId).length === 0}
+        >
+          <GroupIcon fontSize="small" />
           <span className="text-sm font-medium">New Conversation</span>
         </button>
       </div>
