@@ -36,6 +36,7 @@ export class WhiteboardSessionManager {
   private avatar: string;
   private ws: WhiteboardWebSocket | null = null;
   private messageHandlers: Map<string, (data: any) => void> = new Map();
+  private initializePromise: Promise<string> | null = null; // Prevent duplicate initialization
 
   constructor(userId: string, username: string) {
     this.userId = userId;
@@ -45,36 +46,104 @@ export class WhiteboardSessionManager {
 
   // Initialize session and WebSocket connection
   async initialize(sessionName: string = 'Collaborative Whiteboard'): Promise<string> {
-    try {
-      // Check backend health
-      await whiteboardAPI.healthCheck();
-      console.log('✅ Backend is healthy');
-
-      // Create session
-      const session = await whiteboardAPI.createSession(sessionName, this.userId);
-      this.sessionId = session.sessionId;
-      console.log('✅ Session created:', this.sessionId);
-
-      // Initialize WebSocket
-      this.ws = new WhiteboardWebSocket(
-        this.sessionId,
-        this.userId,
-        this.username,
-        this.avatar
-      );
-
-      // Setup WebSocket handlers
-      this.setupWebSocketHandlers();
-
-      // Connect
-      await this.ws.connect();
-      console.log('✅ WebSocket connected');
-
-      return this.sessionId;
-    } catch (error) {
-      console.error('❌ Failed to initialize session:', error);
-      throw error;
+    // CRITICAL: If already initializing or initialized, return existing promise/session
+    if (this.initializePromise) {
+      console.log('⚠️ WhiteboardSessionManager: Initialization already in progress, returning existing promise');
+      return this.initializePromise;
     }
+    
+    if (this.sessionId) {
+      console.log('⚠️ WhiteboardSessionManager: Already initialized with session:', this.sessionId);
+      return this.sessionId;
+    }
+
+    console.log('🚀 WhiteboardSessionManager: Starting initialization...');
+    
+    // Wrap initialization in a promise to prevent duplicates
+    this.initializePromise = (async () => {
+      try {
+        // Check backend health
+        await whiteboardAPI.healthCheck();
+        console.log('✅ Backend is healthy');
+
+        // Create session
+        const session = await whiteboardAPI.createSession(sessionName, this.userId);
+        this.sessionId = session.sessionId;
+        console.log('✅ Session created:', this.sessionId);
+
+        // Initialize WebSocket
+        this.ws = new WhiteboardWebSocket(
+          this.sessionId,
+          this.userId,
+          this.username,
+          this.avatar
+        );
+
+        // Setup WebSocket handlers
+        this.setupWebSocketHandlers();
+
+        // Connect
+        await this.ws.connect();
+        console.log('✅ WebSocket connected');
+
+        return this.sessionId;
+      } catch (error) {
+        console.error('❌ Failed to initialize session:', error);
+        this.initializePromise = null; // Reset on error so retry is possible
+        throw error;
+      }
+    })();
+
+    return this.initializePromise;
+  }
+
+  // Join an existing session (for multi-board support)
+  async joinExistingSession(sessionId: string): Promise<string> {
+    // CRITICAL: If already initializing or initialized, return existing promise/session
+    if (this.initializePromise) {
+      console.log('⚠️ WhiteboardSessionManager: Already initializing, returning existing promise');
+      return this.initializePromise;
+    }
+    
+    if (this.sessionId) {
+      console.log('⚠️ WhiteboardSessionManager: Already connected to session:', this.sessionId);
+      return this.sessionId;
+    }
+
+    console.log('🚀 WhiteboardSessionManager: Joining existing session:', sessionId);
+    
+    // Wrap initialization in a promise to prevent duplicates
+    this.initializePromise = (async () => {
+      try {
+        // Verify session exists
+        const session = await whiteboardAPI.getSession(sessionId);
+        this.sessionId = session.sessionId;
+        console.log('✅ Session verified:', this.sessionId);
+
+        // Initialize WebSocket to connect to existing session
+        this.ws = new WhiteboardWebSocket(
+          this.sessionId,
+          this.userId,
+          this.username,
+          this.avatar
+        );
+
+        // Setup WebSocket handlers
+        this.setupWebSocketHandlers();
+
+        // Connect
+        await this.ws.connect();
+        console.log('✅ WebSocket connected to existing session');
+
+        return this.sessionId;
+      } catch (error) {
+        console.error('❌ Failed to join session:', error);
+        this.initializePromise = null;
+        throw error;
+      }
+    })();
+
+    return this.initializePromise;
   }
 
   // Setup WebSocket message handlers
