@@ -1,5 +1,5 @@
 import Image from "next/image";
-import Whiteboard from "./components/Whiteboard";
+import VoiceChatPage from "./voice-chat/page";
 
 export default function Home() {
   return (
@@ -9,7 +9,7 @@ export default function Home() {
                     Collaborative Whiteboard
                 </h1>
                 {/* Whiteboard component */}
-                <Whiteboard />
+                <VoiceChatPage />
             </div>
         </div>
   );
