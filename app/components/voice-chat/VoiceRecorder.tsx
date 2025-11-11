@@ -1,22 +1,43 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, ChangeEvent } from 'react';
 import MicIcon from '@mui/icons-material/Mic';
 import StopIcon from '@mui/icons-material/Stop';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import SendIcon from '@mui/icons-material/Send';
 import DeleteIcon from '@mui/icons-material/Delete';
 import IconButton from '@mui/material/IconButton';
+import {
+  uploadVoice,
+  sendNotification,
+  type UploadVoiceResponse,
+  type UserResponse,
+} from '../../services/api';
 
 type RecorderState = 'idle' | 'recording' | 'recorded' | 'playing';
 
-export default function VoiceRecorder() {
+interface VoiceRecorderProps {
+  currentUserId: string;
+  selectedUserId: string | null;
+  users: UserResponse[];
+  onRecipientChange: (userId: string | null) => void;
+  onUploadComplete?: (voiceChat: UploadVoiceResponse['voiceChat']) => void;
+}
+
+export default function VoiceRecorder({
+  currentUserId,
+  selectedUserId,
+  users,
+  onRecipientChange,
+  onUploadComplete,
+}: VoiceRecorderProps) {
   const [state, setState] = useState<RecorderState>('idle');
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [waveformData, setWaveformData] = useState<number[]>(
     Array(40).fill(0)
   );
+  const [isUploading, setIsUploading] = useState(false);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -24,6 +45,9 @@ export default function VoiceRecorder() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const animationRef = useRef<number | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const recipientOptions = users;
+  const selectedRecipientId = selectedUserId ?? '';
+  const isSendDisabled = state !== 'recorded' || !selectedRecipientId || isUploading;
 
   useEffect(() => {
     return () => {
@@ -142,37 +166,60 @@ export default function VoiceRecorder() {
     console.log('[UDP] Recording deleted');
   };
 
+  const handleRecipientSelect = (event: ChangeEvent<HTMLSelectElement>) => {
+    const value = event.target.value;
+    onRecipientChange(value || null);
+    setError(null);
+  };
+
   const sendRecording = async () => {
-    if (audioChunksRef.current.length === 0) return;
+    if (audioChunksRef.current.length === 0) {
+      return;
+    }
+
+    if (!selectedRecipientId) {
+      setError('Pick a teammate to send your voice note to.');
+      return;
+    }
 
     try {
+      setError(null);
+      setIsUploading(true);
       const audioBlob = new Blob(audioChunksRef.current, {
         type: 'audio/webm',
       });
 
-      // TODO: Implement UDP voice message upload
-      // - Split blob into chunks (simulate packet loss)
-      // - Send chunks via UDP with sequence numbers
-      // - Implement retransmission logic
-      // - Show progress indicator
-      console.log('[UDP] Sending voice message...', {
+      console.log('[Backend] Uploading voice message...', {
         size: audioBlob.size,
         duration,
         chunks: Math.ceil(audioBlob.size / 1024),
       });
 
-      // Simulate upload delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const audioFile = new File([audioBlob], 'voice-message.webm', {
+        type: 'audio/webm',
+      });
 
-      // Success - reset recorder
+      const result: UploadVoiceResponse = await uploadVoice(audioFile, currentUserId, selectedRecipientId);
+
+      console.log('[Backend] Voice message uploaded successfully:', result);
+
+      await sendNotification(result.fileId, currentUserId);
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('voice-uploaded', { detail: result.voiceChat }));
+      }
+
+      onUploadComplete?.(result.voiceChat);
+
       deleteRecording();
-      alert('Voice message sent successfully!');
-
-      // TODO: Emit success notification
-      console.log('[UDP] Voice message sent successfully');
+      const recipientName = recipientOptions.find((user) => user.userId === selectedRecipientId)?.username ?? selectedRecipientId;
+      alert(`Voice message sent to ${recipientName}. File ID: ${result.fileId}`);
     } catch (err) {
-      setError('Failed to send voice message. Please try again.');
-      console.error('Send error:', err);
+      setError('Failed to send voice message. Please check if backend is running.');
+      console.error('[Backend] Send error:', err);
+      setState('recorded');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -189,6 +236,35 @@ export default function VoiceRecorder() {
           {error}
         </div>
       )}
+
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-1">
+          Send voice message to
+        </label>
+        <select
+          value={selectedRecipientId}
+          onChange={handleRecipientSelect}
+          disabled={recipientOptions.length === 0 || state === 'recording' || isUploading}
+          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50"
+        >
+          <option value="">Select a teammate</option>
+          {recipientOptions.map((user) => (
+            <option key={user.userId} value={user.userId}>
+              {user.username}
+            </option>
+          ))}
+        </select>
+        {selectedRecipientId === '' && recipientOptions.length > 0 && (
+          <p className="mt-1 text-xs text-gray-500">
+            Choose who should receive this clip to enable the send button.
+          </p>
+        )}
+        {recipientOptions.length === 0 && (
+          <p className="mt-1 text-xs text-gray-500">
+            No teammates available yet. Ask an admin to add users in the dashboard.
+          </p>
+        )}
+      </div>
 
       {/* Waveform Visualization */}
       <div className="mb-4 flex items-center justify-center h-16 gap-1">
@@ -259,9 +335,14 @@ export default function VoiceRecorder() {
         {state === 'recorded' && (
           <IconButton
             onClick={sendRecording}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            disabled={isSendDisabled}
+            className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60"
           >
-            <SendIcon />
+            {isUploading ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <SendIcon />
+            )}
           </IconButton>
         )}
       </div>

@@ -1,60 +1,23 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import MicIcon from '@mui/icons-material/Mic';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import MessageIcon from '@mui/icons-material/Message';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-
-export interface Notification {
-  id: string;
-  type: 'voice' | 'user' | 'message' | 'system';
-  title: string;
-  message: string;
-  timestamp: Date;
-  isRead: boolean;
-}
+import RefreshIcon from '@mui/icons-material/Refresh';
+import type { Notification } from '../../types/voice-chat.types';
 
 interface NotificationPopupProps {
+  notifications: Notification[];
+  unreadCount: number;
+  isLoading: boolean;
+  error?: string | null;
   onClose: () => void;
-  onClearUnread: () => void;
+  onMarkAllRead: () => void;
+  onRefresh: () => void;
+  onNotificationClick?: (notificationId: string) => void;
 }
-
-// TODO: Replace with actual notifications from useNotifications hook
-const DUMMY_NOTIFICATIONS: Notification[] = [
-  {
-    id: '1',
-    type: 'voice',
-    title: 'New Voice Message',
-    message: 'Alice sent you a voice message',
-    timestamp: new Date(Date.now() - 5 * 60 * 1000),
-    isRead: false,
-  },
-  {
-    id: '2',
-    type: 'user',
-    title: 'User Online',
-    message: 'Bob is now online',
-    timestamp: new Date(Date.now() - 15 * 60 * 1000),
-    isRead: false,
-  },
-  {
-    id: '3',
-    type: 'message',
-    title: 'New Message',
-    message: 'Charlie: Hey, check out this feature!',
-    timestamp: new Date(Date.now() - 30 * 60 * 1000),
-    isRead: false,
-  },
-  {
-    id: '4',
-    type: 'system',
-    title: 'Connection Stable',
-    message: 'UDP connection established successfully',
-    timestamp: new Date(Date.now() - 60 * 60 * 1000),
-    isRead: true,
-  },
-];
 
 const getNotificationIcon = (type: Notification['type']) => {
   switch (type) {
@@ -86,8 +49,14 @@ const formatTimestamp = (date: Date): string => {
 };
 
 export default function NotificationPopup({
+  notifications,
+  unreadCount,
+  isLoading,
+  error,
   onClose,
-  onClearUnread,
+  onMarkAllRead,
+  onRefresh,
+  onNotificationClick,
 }: NotificationPopupProps) {
   const popupRef = useRef<HTMLDivElement>(null);
 
@@ -105,7 +74,13 @@ export default function NotificationPopup({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [onClose]);
 
-  const unreadCount = DUMMY_NOTIFICATIONS.filter((n) => !n.isRead).length;
+  const sortedNotifications = useMemo(
+    () =>
+      [...notifications].sort(
+        (a, b) => b.timestamp.getTime() - a.timestamp.getTime(),
+      ),
+    [notifications],
+  );
 
   return (
     <div
@@ -117,29 +92,46 @@ export default function NotificationPopup({
         <h3 className="text-lg font-semibold text-gray-900">
           Notifications
         </h3>
-        {unreadCount > 0 && (
+        <div className="flex items-center space-x-2">
           <button
-            onClick={onClearUnread}
-            className="text-xs text-blue-600 hover:underline"
+            type="button"
+            onClick={onRefresh}
+            className="p-1 text-gray-500 hover:text-gray-700"
+            aria-label="Refresh notifications"
+            title="Refresh notifications"
           >
-            Mark all as read
+            <RefreshIcon fontSize="small" className={isLoading ? 'animate-spin' : ''} />
           </button>
-        )}
+          {unreadCount > 0 && (
+            <button
+              onClick={onMarkAllRead}
+              className="text-xs text-blue-600 hover:underline"
+            >
+              Mark all as read
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Notifications List */}
       <div className="max-h-96 overflow-y-auto">
-        {DUMMY_NOTIFICATIONS.length === 0 ? (
+        {error && (
+          <div className="px-4 py-3 text-sm text-red-600 border-b border-red-100 bg-red-50">
+            {error}
+          </div>
+        )}
+        {sortedNotifications.length === 0 && !isLoading ? (
           <div className="px-4 py-8 text-center text-gray-500">
             No notifications
           </div>
         ) : (
-          DUMMY_NOTIFICATIONS.map((notification) => (
+          sortedNotifications.map((notification) => (
             <div
               key={notification.id}
               className={`px-4 py-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
                 !notification.isRead ? 'bg-blue-50' : ''
               }`}
+              onClick={() => onNotificationClick?.(notification.id)}
             >
               <div className="flex items-start space-x-3">
                 <div className="shrink-0 mt-1">
@@ -172,6 +164,9 @@ export default function NotificationPopup({
         <button className="w-full text-center text-sm text-blue-600 hover:underline">
           View all notifications
         </button>
+        {isLoading && (
+          <p className="mt-2 text-center text-xs text-gray-500">Refreshing…</p>
+        )}
       </div>
     </div>
   );
