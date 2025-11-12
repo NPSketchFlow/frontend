@@ -101,7 +101,6 @@ export default function ConversationsList({
           placeholder="Search teammates..."
           value={searchQuery}
           onChange={setSearchQuery}
-          disabled={isLoading || users.length === 0}
         />
       </div>
 

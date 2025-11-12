@@ -12,7 +12,7 @@ export default function TopNavBar() {
   const [showNotifications, setShowNotifications] = useState(false);
   const currentUser = {
     id: process.env.NEXT_PUBLIC_USER_ID ?? 'demo-user',
-    name: 'John Anderson',
+    name: 'Tharushi De Silva',
     avatarUrl: '',
     status: 'online' as const,
   };

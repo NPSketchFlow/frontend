@@ -13,6 +13,7 @@ import {
   type UploadVoiceResponse,
   type UserResponse,
 } from '../../services/api';
+import Modal from '../layout/Modal';
 
 type RecorderState = 'idle' | 'recording' | 'recorded' | 'playing';
 
@@ -38,6 +39,13 @@ export default function VoiceRecorder({
     Array(40).fill(0)
   );
   const [isUploading, setIsUploading] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalData, setModalData] = useState<{
+    title: string;
+    message?: string;
+    fileId?: string;
+    playbackUrl?: string | null;
+  } | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -211,9 +219,29 @@ export default function VoiceRecorder({
 
       onUploadComplete?.(result.voiceChat);
 
-      deleteRecording();
       const recipientName = recipientOptions.find((user) => user.userId === selectedRecipientId)?.username ?? selectedRecipientId;
-      alert(`Voice message sent to ${recipientName}. File ID: ${result.fileId}`);
+
+      // Show a nicer modal popup with details and optional playback link
+      let playbackUrl: string | null = null;
+      if (result && typeof result === 'object') {
+        const r = (result as unknown) as Record<string, unknown>;
+        if (r.voiceChat && typeof r.voiceChat === 'object') {
+          const vc = r.voiceChat as Record<string, unknown>;
+          if (typeof vc.fileUrl === 'string') playbackUrl = vc.fileUrl;
+        }
+        if (!playbackUrl && typeof r.fileUrl === 'string') playbackUrl = r.fileUrl as string;
+      }
+
+      setModalData({
+        title: 'Voice message sent',
+        message: `Sent to ${recipientName}. File ID: ${result.fileId}`,
+        fileId: result.fileId,
+        playbackUrl,
+      });
+      setModalOpen(true);
+
+      // Clean up local recording after showing modal
+      deleteRecording();
     } catch (err) {
       setError('Failed to send voice message. Please check if backend is running.');
       console.error('[Backend] Send error:', err);
@@ -230,7 +258,8 @@ export default function VoiceRecorder({
   };
 
   return (
-    <div className="bg-white border-t border-gray-200 p-4">
+    <>
+      <div className="bg-white border-t border-gray-200 p-4">
       {error && (
         <div className="mb-3 px-4 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
           {error}
@@ -362,5 +391,55 @@ export default function VoiceRecorder({
         </div>
       )}
     </div>
+      {/* Modal for upload confirmation */}
+      <Modal
+        open={modalOpen}
+        title={modalData?.title}
+        onClose={() => {
+          setModalOpen(false);
+          setModalData(null);
+        }}
+        actions={
+          <>
+            {modalData?.playbackUrl && (
+              <a
+                href={modalData.playbackUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+              >
+                Play
+              </a>
+            )}
+            {modalData?.fileId && !modalData?.playbackUrl && (
+              <a
+                href={`/api/voice/download/${modalData.fileId}`}
+                target="_blank"
+                rel="noreferrer"
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+              >
+                Download
+              </a>
+            )}
+            <button
+              onClick={() => {
+                setModalOpen(false);
+                setModalData(null);
+              }}
+              className="px-4 py-2 bg-gray-100 text-gray-800 rounded hover:bg-gray-200 text-sm"
+            >
+              Close
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-2">
+          <p>{modalData?.message}</p>
+          {modalData?.fileId && (
+            <p className="text-xs text-gray-500">ID: {modalData.fileId}</p>
+          )}
+        </div>
+      </Modal>
+    </>
   );
 }
