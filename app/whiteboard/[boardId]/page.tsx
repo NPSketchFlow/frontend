@@ -10,6 +10,7 @@ import {
 } from '../../services/whiteboardClient';
 import { tokenManager } from '../../services/authService';
 import { whiteboardAPI } from '../../services/whiteboardService';
+import ChatPanel from '@/app/components/whiteboard/ChatPanel';
 
 const COLORS = [
   '#3B82F6', // blue
@@ -601,6 +602,13 @@ export default function WhiteboardBoardPage() {
             <Download className="w-6 h-6" />
           </button>
         </main>
+        {/* NEW CHAT PANEL (Right) */}
+        <aside className="h-full">
+          <ChatPanel 
+            sessionManager={sessionManagerRef.current}
+            sessionId={boardId}
+          />
+        </aside>
       </div>
     </div>
   );
