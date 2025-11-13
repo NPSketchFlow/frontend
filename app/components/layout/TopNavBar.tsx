@@ -1,21 +1,39 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import Badge from '@mui/material/Badge';
 import IconButton from '@mui/material/IconButton';
 import UserAvatar from '../shared/UserAvatar';
 import NotificationPopup from './NotificationPopup';
 import useNotifications from '../../hooks/useNotifications';
+import { tokenManager } from '../../services/authService';
 
 export default function TopNavBar() {
   const [showNotifications, setShowNotifications] = useState(false);
+  // Use deterministic placeholder initially (matches server), then hydrate with stored user
+  const [currentUserId, setCurrentUserId] = useState<string | null>(
+    process.env.NEXT_PUBLIC_USER_ID ?? 'demo-user',
+  );
+  const [currentUserName, setCurrentUserName] = useState('Tharushi De Silva');
+  const [currentUserAvatar, setCurrentUserAvatar] = useState('');
   const currentUser = {
-    id: process.env.NEXT_PUBLIC_USER_ID ?? 'demo-user',
-    name: 'John Anderson',
-    avatarUrl: '',
+    id: currentUserId ?? 'demo-user',
+    name: currentUserName,
+    avatarUrl: currentUserAvatar,
     status: 'online' as const,
   };
+
+  useEffect(() => {
+    const u = tokenManager.getUser();
+    if (u) {
+      setTimeout(() => {
+        setCurrentUserId(u.id ?? 'demo-user');
+        setCurrentUserName(u.fullName ?? u.username ?? 'Tharushi De Silva');
+        setCurrentUserAvatar(u.avatar ?? '');
+      }, 0);
+    }
+  }, []);
 
   const {
     notifications,

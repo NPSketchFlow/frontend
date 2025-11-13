@@ -14,9 +14,9 @@ import {
   type UserResponse,
   type VoiceChatResponse,
 } from '../services/api';
+import { tokenManager } from '../services/authService';
 
-const CURRENT_USER_ID = process.env.NEXT_PUBLIC_USER_ID ?? 'user-1';
-const CURRENT_USER_NAME = process.env.NEXT_PUBLIC_USER_NAME ?? CURRENT_USER_ID;
+// Use runtime authenticated user (falls back to env for dev)
 
 export default function VoiceChatPage() {
   const [users, setUsers] = useState<UserResponse[]>([]);
@@ -24,13 +24,17 @@ export default function VoiceChatPage() {
   const [conversationSummaries, setConversationSummaries] = useState<Record<string, VoiceChatResponse>>({});
   const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [isLoadingConversations, setIsLoadingConversations] = useState(false);
+  const [currentUser, setCurrentUser] = useState(() => tokenManager.getUser());
+
+  const CURRENT_USER_ID = currentUser?.id ?? process.env.NEXT_PUBLIC_USER_ID ?? 'user-1';
+  const CURRENT_USER_NAME = currentUser?.fullName ?? process.env.NEXT_PUBLIC_USER_NAME ?? CURRENT_USER_ID;
 
   const loadUsers = useCallback(async () => {
     setIsLoadingUsers(true);
     try {
       let fetched = await getUsers();
 
-      if (!fetched.some((user) => user.userId === CURRENT_USER_ID)) {
+      if (CURRENT_USER_ID && !fetched.some((user) => user.userId === CURRENT_USER_ID)) {
         try {
           const created = await createUser({
             userId: CURRENT_USER_ID,
@@ -63,7 +67,7 @@ export default function VoiceChatPage() {
     } finally {
       setIsLoadingUsers(false);
     }
-  }, []);
+  }, [CURRENT_USER_ID, CURRENT_USER_NAME]);
 
   const refreshConversationSummaries = useCallback(async () => {
     setIsLoadingConversations(true);
@@ -89,14 +93,20 @@ export default function VoiceChatPage() {
     } finally {
       setIsLoadingConversations(false);
     }
-  }, []);
+  }, [CURRENT_USER_ID]);
 
   useEffect(() => {
-    loadUsers();
-  }, [loadUsers]);
+    // ensure current user state is in sync with tokenManager
+    const stored = tokenManager.getUser();
+    if (stored && (!currentUser || stored.id !== currentUser.id)) {
+      setCurrentUser(stored);
+    }
+
+    void loadUsers();
+  }, [loadUsers, currentUser]);
 
   useEffect(() => {
-    refreshConversationSummaries();
+    void refreshConversationSummaries();
   }, [refreshConversationSummaries]);
 
   const handleSelectUser = useCallback((userId: string | null) => {
@@ -110,7 +120,7 @@ export default function VoiceChatPage() {
     }
 
     setSelectedUserId(userId);
-  }, []);
+  }, [CURRENT_USER_ID]);
 
   const handleConversationUpdated = useCallback(() => {
     refreshConversationSummaries();
@@ -118,7 +128,7 @@ export default function VoiceChatPage() {
 
   const selectableUsers = useMemo(
     () => users.filter((user) => user.userId !== CURRENT_USER_ID),
-    [users],
+    [users, CURRENT_USER_ID],
   );
 
   return (
@@ -129,7 +139,7 @@ export default function VoiceChatPage() {
         <TopNavBar />
 
         <div className="flex-1 flex overflow-hidden mt-16">
-          <div className="w-80 shrink-0 hidden lg:block">
+          <div className="w-80 shrink-0">
             <ConversationsList
               users={selectableUsers}
               currentUserId={CURRENT_USER_ID}

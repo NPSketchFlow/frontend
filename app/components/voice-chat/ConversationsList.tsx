@@ -84,10 +84,16 @@ export default function ConversationsList({
   const filteredConversations = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     if (!query) return conversations;
-    return conversations.filter((conversation) =>
-      conversation.name.toLowerCase().includes(query) || conversation.id.toLowerCase().includes(query),
-    );
-  }, [conversations, searchQuery]);
+    return conversations.filter((conversation) => {
+      const nameMatch = conversation.name?.toLowerCase().includes(query);
+      const idMatch = conversation.id?.toLowerCase().includes(query);
+      // Also try to match against the user's username if available
+      const user = users.find((u) => u.userId === conversation.id);
+      const username = user?.username ?? '';
+      const usernameMatch = username.toLowerCase().includes(query);
+      return Boolean(nameMatch || idMatch || usernameMatch);
+    });
+  }, [conversations, searchQuery, users]);
 
   const handleSelect = (conversation: ConversationItem) => {
     onSelect(conversation.id);
@@ -101,7 +107,6 @@ export default function ConversationsList({
           placeholder="Search teammates..."
           value={searchQuery}
           onChange={setSearchQuery}
-          disabled={isLoading || users.length === 0}
         />
       </div>
 
@@ -114,11 +119,13 @@ export default function ConversationsList({
           </div>
         ) : (
           <div className="py-2">
-            {filteredConversations.map((conversation) => {
+            {filteredConversations.map((conversation, idx) => {
               const isSelected = selectedUserId === conversation.id;
+              const key = `${conversation.id}:${conversation.lastTimestamp ?? 0}:${idx}`;
               return (
                 <button
-                  key={conversation.id}
+                  type="button"
+                  key={key}
                   onClick={() => handleSelect(conversation)}
                   className={`w-full flex items-center space-x-3 px-4 py-3 transition-colors ${
                     isSelected ? 'bg-blue-50 border-l-4 border-blue-600' : 'hover:bg-gray-50 border-l-4 border-transparent'

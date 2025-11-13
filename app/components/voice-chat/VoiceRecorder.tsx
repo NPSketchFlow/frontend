@@ -13,6 +13,7 @@ import {
   type UploadVoiceResponse,
   type UserResponse,
 } from '../../services/api';
+import Modal from '../layout/Modal';
 
 type RecorderState = 'idle' | 'recording' | 'recorded' | 'playing';
 
@@ -38,6 +39,14 @@ export default function VoiceRecorder({
     Array(40).fill(0)
   );
   const [isUploading, setIsUploading] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [modalData, setModalData] = useState<{
+    title: string;
+    message?: string;
+    fileId?: string;
+    playbackUrl?: string | null;
+  } | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -172,7 +181,7 @@ export default function VoiceRecorder({
     setError(null);
   };
 
-  const sendRecording = async () => {
+  const performUpload = async () => {
     if (audioChunksRef.current.length === 0) {
       return;
     }
@@ -203,7 +212,7 @@ export default function VoiceRecorder({
 
       console.log('[Backend] Voice message uploaded successfully:', result);
 
-      await sendNotification(result.fileId, currentUserId);
+      await sendNotification(result.fileId, currentUserId, selectedRecipientId);
 
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('voice-uploaded', { detail: result.voiceChat }));
@@ -211,9 +220,30 @@ export default function VoiceRecorder({
 
       onUploadComplete?.(result.voiceChat);
 
-      deleteRecording();
       const recipientName = recipientOptions.find((user) => user.userId === selectedRecipientId)?.username ?? selectedRecipientId;
-      alert(`Voice message sent to ${recipientName}. File ID: ${result.fileId}`);
+
+      // Show a nicer modal popup with details and optional playback link
+      let playbackUrl: string | null = null;
+      if (result && typeof result === 'object') {
+        const r = (result as unknown) as Record<string, unknown>;
+        if (r.voiceChat && typeof r.voiceChat === 'object') {
+          const vc = r.voiceChat as Record<string, unknown>;
+          if (typeof vc.fileUrl === 'string') playbackUrl = vc.fileUrl;
+        }
+        if (!playbackUrl && typeof r.fileUrl === 'string') playbackUrl = r.fileUrl as string;
+      }
+
+      setModalData({
+        title: 'Voice message sent',
+        message: `Sent to ${recipientName}. File ID: ${result.fileId}`,
+        fileId: result.fileId,
+        playbackUrl,
+      });
+      setConfirmOpen(false);
+      setModalOpen(true);
+
+      // Clean up local recording after showing modal
+      deleteRecording();
     } catch (err) {
       setError('Failed to send voice message. Please check if backend is running.');
       console.error('[Backend] Send error:', err);
@@ -223,6 +253,19 @@ export default function VoiceRecorder({
     }
   };
 
+  const handleSendClick = () => {
+    // Open confirm modal instead of immediately uploading
+    if (!selectedRecipientId) {
+      setError('Pick a teammate to send your voice note to.');
+      return;
+    }
+    setConfirmOpen(true);
+  };
+
+  const handleConfirmSend = async () => {
+    await performUpload();
+  };
+
   const formatDuration = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -230,7 +273,8 @@ export default function VoiceRecorder({
   };
 
   return (
-    <div className="bg-white border-t border-gray-200 p-4">
+    <>
+      <div className="bg-white border-t border-gray-200 p-4">
       {error && (
         <div className="mb-3 px-4 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
           {error}
@@ -247,10 +291,10 @@ export default function VoiceRecorder({
           disabled={recipientOptions.length === 0 || state === 'recording' || isUploading}
           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500 disabled:opacity-50"
         >
-          <option value="">Select a teammate</option>
-          {recipientOptions.map((user) => (
-            <option key={user.userId} value={user.userId}>
-              {user.username}
+          <option key="__placeholder__" value="">Select a teammate</option>
+          {recipientOptions.map((user, idx) => (
+            <option key={`${user.userId ?? 'user'}:${user.username ?? ''}:${idx}`} value={user.userId}>
+              {user.username ?? user.userId}
             </option>
           ))}
         </select>
@@ -267,6 +311,11 @@ export default function VoiceRecorder({
       </div>
 
       {/* Waveform Visualization */}
+      {selectedRecipientId && (
+        <div className="mb-3 px-3 py-2 bg-blue-50 border border-blue-100 rounded text-sm text-blue-800">
+          Recording will be sent to <strong>{recipientOptions.find(u => u.userId === selectedRecipientId)?.username ?? selectedRecipientId}</strong>. Click <span className="font-semibold">Send</span> to confirm.
+        </div>
+      )}
       <div className="mb-4 flex items-center justify-center h-16 gap-1">
         {waveformData.map((height, index) => (
           <div
@@ -334,7 +383,7 @@ export default function VoiceRecorder({
         {/* Send Button */}
         {state === 'recorded' && (
           <IconButton
-            onClick={sendRecording}
+            onClick={handleSendClick}
             disabled={isSendDisabled}
             className="bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-60"
           >
@@ -362,5 +411,70 @@ export default function VoiceRecorder({
         </div>
       )}
     </div>
+      {/* Confirm send modal (OK / Cancel) */}
+      <Modal
+        open={confirmOpen}
+        title={selectedRecipientId ? `Send recording to ${recipientOptions.find(u => u.userId === selectedRecipientId)?.username ?? selectedRecipientId}` : 'Send recording'}
+        onClose={() => setConfirmOpen(false)}
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => setConfirmOpen(false)}
+              className="px-4 py-2 bg-gray-100 text-gray-800 rounded hover:bg-gray-200 text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleConfirmSend}
+              disabled={isUploading}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm disabled:opacity-60"
+            >
+              {isUploading ? 'Sending...' : 'Send'}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-2">
+          <p>
+            This recording will be sent to{' '}
+            <strong>{recipientOptions.find(u => u.userId === selectedRecipientId)?.username ?? selectedRecipientId}</strong>.
+          </p>
+          <p className="text-sm text-gray-500">Click Send to confirm or Cancel to go back.</p>
+        </div>
+      </Modal>
+
+      {/* Success modal: show file id and OK only */}
+      <Modal
+        open={modalOpen}
+        title={modalData?.title}
+        onClose={() => {
+          setModalOpen(false);
+          setModalData(null);
+        }}
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                setModalOpen(false);
+                setModalData(null);
+              }}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
+            >
+              OK
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-2">
+          <p>{modalData?.message}</p>
+          {modalData?.fileId && (
+            <p className="text-xs text-gray-500">ID: {modalData.fileId}</p>
+          )}
+        </div>
+      </Modal>
+    </>
   );
 }

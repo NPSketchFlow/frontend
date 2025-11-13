@@ -248,20 +248,20 @@ export default function BackendTestPage() {
               </div>
 
               {/* Error Details */}
-              {(testResults.details.restApiError ||
-                testResults.details.websocketError) && (
+              {(testResults.details.restApiError != null ||
+                testResults.details.websocketError != null) && (
                 <div className="p-4 border border-red-200 bg-red-50 rounded-lg">
                   <h3 className="font-semibold text-red-800 mb-2">
                     Error Details
                   </h3>
                   <div className="space-y-2 text-sm text-red-700">
-                    {testResults.details.restApiError && (
+                    {testResults.details.restApiError != null && (
                       <p>
                         <strong>REST API:</strong>{' '}
                         {String(testResults.details.restApiError)}
                       </p>
                     )}
-                    {testResults.details.websocketError && (
+                    {testResults.details.websocketError != null && (
                       <p>
                         <strong>WebSocket:</strong>{' '}
                         {String(testResults.details.websocketError)}
