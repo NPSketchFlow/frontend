@@ -129,6 +129,7 @@ export default function OnlineUsersList({
             const isSelected = selectedUsername === user.name; // <-- CORRECT (compares usernames)
             // ...
             const disabled = user.isSelf;
+            const key = `${user.id ?? user.name}:${idx}`;
             return (
               <button
                 key={user.id}

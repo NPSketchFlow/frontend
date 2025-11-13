@@ -2,11 +2,13 @@
 import axios from "axios";
 import { tokenManager } from "./authService";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8080/api";
+const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL
+  ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/api`
+  : 'http://localhost:8080/api';
 
-const api = axios.create({
+// Create axios instance
+export const axiosInstance = axios.create({
   baseURL: API_BASE,
-  withCredentials: true,
 });
 // --- ADD THIS ENTIRE CODE BLOCK ---
 api.interceptors.request.use(
@@ -25,16 +27,32 @@ api.interceptors.request.use(
   }
 );
 
+// Attach JWT from tokenManager to every request if available
+axiosInstance.interceptors.request.use((config) => {
+  try {
+    const token = tokenManager.getToken();
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  } catch {
+    // ignore
+  }
+  return config;
+});
+
+// --- Types ---
 export interface UploadVoiceResponse {
   status: string;
   fileId: string;
-  downloadUrl: string;
-  voiceChat: {
+  downloadUrl?: string;
+  fileUrl?: string;
+  voiceChat?: {
     chatId: string;
     senderId: string;
     receiverId?: string | null;
-    filePath: string;
-    timestamp: number;
+    filePath?: string;
+    fileUrl?: string;
+    timestamp?: number;
   };
 }
 
@@ -98,44 +116,49 @@ export interface CreateUserRequest {
   lastSeen?: number;
 }
 
+// --- API calls ---
 export const uploadVoice = async (file: File, senderId: string, receiverId?: string) => {
   const formData = new FormData();
-  formData.append("file", file);
-  formData.append("senderId", senderId);
-  if (receiverId) {
-    formData.append("receiverId", receiverId);
-  }
+  formData.append('file', file);
+  formData.append('senderId', senderId);
+  if (receiverId) formData.append('receiverId', receiverId);
 
-  const res = await api.post<UploadVoiceResponse>("/voice/upload", formData, {
+  const res = await axiosInstance.post<UploadVoiceResponse>('/voice/upload', formData, {
     headers: {
-      "Content-Type": "multipart/form-data",
+      'Content-Type': 'multipart/form-data',
     },
   });
+
   return res.data;
 };
 
-export const sendNotification = async (fileId: string, senderId: string) => {
-  const payload = {
-    type: "NEW_VOICE",
-    payload: { fileId, senderId },
+export const sendNotification = async (fileId: string, senderId: string, receiverId?: string) => {
+  const payload: SendNotificationRequest = {
+    type: 'NEW_VOICE',
+    message: `New voice message from ${senderId}`,
+    senderId,
+    receiverId,
+    fileId,
     priority: 1,
   };
-  const res = await api.post("/notifications/send", payload);
+
+  // Prefer the structured endpoint which expects the full notification object
+  const res = await axiosInstance.post('/notifications/send', payload);
   return res.data;
 };
 
 export const getOnlineUsers = async () => {
-  const res = await api.get<OnlineUserResponse[]>("/online-users");
+  const res = await axiosInstance.get<OnlineUserResponse[]>('/online-users');
   return res.data;
 };
 
 export const getVoiceChats = async () => {
-  const res = await api.get<VoiceChatResponse[]>("/voice-chats");
+  const res = await axiosInstance.get<VoiceChatResponse[]>('/voice-chats');
   return res.data;
 };
 
 export const getVoiceConversation = async (participantA: string, participantB: string) => {
-  const res = await api.get<VoiceChatResponse[]>('/voice-chats/conversation', {
+  const res = await axiosInstance.get<VoiceChatResponse[]>('/voice-chats/conversation', {
     params: { participantA, participantB },
   });
   return res.data;
@@ -147,49 +170,49 @@ export const getUsers = async () => {
 };
 
 export const createUser = async (user: CreateUserRequest) => {
-  const res = await api.post<UserResponse>('/users', user);
+  const res = await axiosInstance.post<UserResponse>('/users', user);
   return res.data;
 };
 
 export const sendNotificationRequest = async (notification: SendNotificationRequest) => {
-  const res = await api.post<{ status: string; notification: NotificationResponse }>('/notifications/send', notification);
+  const res = await axiosInstance.post<{ status: string; notification: NotificationResponse }>('/notifications/send', notification);
   return res.data;
 };
 
 export const getNotifications = async (receiverId?: string) => {
-  const res = await api.get<NotificationResponse[]>('/notifications', {
+  const res = await axiosInstance.get<NotificationResponse[]>('/notifications', {
     params: receiverId ? { receiverId } : undefined,
   });
   return res.data;
 };
 
 export const getUnreadNotifications = async (receiverId: string) => {
-  const res = await api.get<NotificationResponse[]>('/notifications/unread', {
+  const res = await axiosInstance.get<NotificationResponse[]>('/notifications/unread', {
     params: { receiverId },
   });
   return res.data;
 };
 
 export const getUnreadNotificationCount = async (receiverId: string) => {
-  const res = await api.get<{ receiverId: string; count: number }>('/notifications/unread/count', {
+  const res = await axiosInstance.get<{ receiverId: string; count: number }>('/notifications/unread/count', {
     params: { receiverId },
   });
   return res.data;
 };
 
 export const markNotificationAsRead = async (notificationId: string) => {
-  const res = await api.patch<NotificationResponse>(`/notifications/${notificationId}/read`);
+  const res = await axiosInstance.patch<NotificationResponse>(`/notifications/${notificationId}/read`);
   return res.data;
 };
 
 export const markAllNotificationsRead = async (receiverId: string) => {
-  const res = await api.post<{ status: string; receiverId: string }>('/notifications/mark-all-read', {
+  const res = await axiosInstance.post<{ status: string; receiverId: string }>('/notifications/mark-all-read', {
     receiverId,
   });
   return res.data;
 };
 
-export default {
+const api = {
   uploadVoice,
   sendNotification,
   getOnlineUsers,
@@ -204,3 +227,5 @@ export default {
   markNotificationAsRead,
   markAllNotificationsRead,
 };
+
+export default api;

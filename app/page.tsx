@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { tokenManager } from './services/authService';
 import { Loader2, LogOut, User as UserIcon } from 'lucide-react';
+import SideBar from './components/layout/SideBar';
 
 export default function Home() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
+  const [redirectingAdmin, setRedirectingAdmin] = useState(false);
 
   useEffect(() => {
     // Check if user is authenticated
@@ -21,6 +23,15 @@ export default function Home() {
       router.push('/auth');
     } else {
       setUser(userData);
+
+      // Check if user has admin role and redirect to admin dashboard
+      if (userData.roles && userData.roles.includes('ROLE_ADMIN')) {
+        console.log('Admin user detected, redirecting to admin dashboard...');
+        setRedirectingAdmin(true);
+        router.push('/admin');
+        return;
+      }
+
       setIsLoading(false);
     }
   }, [router]);
@@ -30,7 +41,7 @@ export default function Home() {
     router.push('/auth');
   };
 
-  if (isLoading) {
+  if (isLoading || redirectingAdmin) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center">
         <div className="text-center">
@@ -43,6 +54,8 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+      <SideBar />
+      <div className="ml-64">
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -103,128 +116,47 @@ export default function Home() {
 
         {/* Feature Cards */}
         <div className="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto">
-          {/* My Boards Card */}
-          <Link href="/boards">
-            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-200 cursor-pointer border-2 border-transparent hover:border-blue-500 group">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-cyan-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <svg
-                  className="w-8 h-8 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-3zM14 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1h-4a1 1 0 01-1-1v-3z"
-                  />
-                </svg>
-              </div>
-              <h3 className="text-2xl font-bold text-slate-800 mb-2">My Boards</h3>
-              <p className="text-slate-600">
-                View and manage all your whiteboards in one place.
-              </p>
-              <div className="mt-4 text-blue-600 font-medium flex items-center gap-2">
-                View Boards
-                <svg
-                  className="w-5 h-5 group-hover:translate-x-1 transition-transform"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5l7 7-7 7"
-                  />
-                </svg>
-              </div>
+          {/* Whiteboard */}
+          <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-200 cursor-default border-2 border-transparent group">
+            <div className="w-16 h-16 bg-linear-to-br from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
             </div>
-          </Link>
+            <h3 className="text-2xl font-bold text-slate-800 mb-2">Whiteboard</h3>
+            <p className="text-slate-600">Collaborate visually — draw, sketch, and co-edit boards in real time with your team.</p>
+            <div className="mt-4">
+              <Link href="/boards" className="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition">Open Boards</Link>
+            </div>
+          </div>
 
-          {/* Whiteboard Card */}
-          <Link href="/boards">
-            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-200 cursor-pointer border-2 border-transparent hover:border-indigo-500 group">
-              <div className="w-16 h-16 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <svg
-                  className="w-8 h-8 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                  />
-                </svg>
-              </div>
-              <h3 className="text-2xl font-bold text-slate-800 mb-2">Whiteboard</h3>
-              <p className="text-slate-600">
-                Collaborate in real-time with drawing tools, shapes, and more.
-              </p>
-              <div className="mt-4 text-indigo-600 font-medium flex items-center gap-2">
-                Start Drawing
-                <svg
-                  className="w-5 h-5 group-hover:translate-x-1 transition-transform"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5l7 7-7 7"
-                  />
-                </svg>
-              </div>
+          {/* Text Chat */}
+          <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-200 cursor-default border-2 border-transparent group">
+            <div className="w-16 h-16 bg-linear-to-br from-green-500 to-emerald-500 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4-.8L3 20l1.8-4.2A7.972 7.972 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
             </div>
-          </Link>
+            <h3 className="text-2xl font-bold text-slate-800 mb-2">Text Chat</h3>
+            <p className="text-slate-600">Exchange quick messages, ask questions, and clarify doubts with teammates in threaded conversations.</p>
+            <div className="mt-4">
+              <Link href="/chat" className="px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition">Open Chat</Link>
+            </div>
+          </div>
 
-          {/* Voice Chat Card */}
-          <Link href="/voice-chat">
-            <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-200 cursor-pointer border-2 border-transparent hover:border-purple-500 group">
-              <div className="w-16 h-16 bg-gradient-to-br from-purple-600 to-pink-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <svg
-                  className="w-8 h-8 text-white"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
-                  />
-                </svg>
-              </div>
-              <h3 className="text-2xl font-bold text-slate-800 mb-2">Voice Chat</h3>
-              <p className="text-slate-600">
-                Communicate with your team using voice messages and chat.
-              </p>
-              <div className="mt-4 text-purple-600 font-medium flex items-center gap-2">
-                Start Chatting
-                <svg
-                  className="w-5 h-5 group-hover:translate-x-1 transition-transform"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 5l7 7-7 7"
-                  />
-                </svg>
-              </div>
+          {/* Voice Messages */}
+          <div className="bg-white rounded-2xl p-8 shadow-lg hover:shadow-xl transition-all duration-200 cursor-default border-2 border-transparent group">
+            <div className="w-16 h-16 bg-linear-to-br from-purple-600 to-pink-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+              </svg>
             </div>
-          </Link>
+            <h3 className="text-2xl font-bold text-slate-800 mb-2">Voice Messages</h3>
+            <p className="text-slate-600">Send short voice clips to teammates with delivery notifications and threaded conversations.</p>
+            <div className="mt-4">
+              <Link href="/voice-chat" className="px-4 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition">Open Voice Messages</Link>
+            </div>
+          </div>
         </div>
 
         {/* Stats */}
@@ -242,6 +174,7 @@ export default function Home() {
             <div className="text-slate-600 text-sm">Collaboration</div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
