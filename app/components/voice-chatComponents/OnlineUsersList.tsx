@@ -7,9 +7,9 @@ import { type UserResponse } from '../../services/api';
 
 interface OnlineUsersListProps {
   users: UserResponse[];
-  currentUserId: string;
-  selectedUserId: string | null;
-  onSelect: (userId: string | null) => void;
+  currentUserId: string; // Keep this
+  selectedUsername: string | null; // <-- CHANGE from selectedUserId
+  onSelect: (username: string | null) => void; // <-- CHANGE from userId
   isLoading?: boolean;
 }
 
@@ -62,7 +62,7 @@ const sectionLabel = (status: OnlineStatus): string => {
 export default function OnlineUsersList({
   users,
   currentUserId,
-  selectedUserId,
+  selectedUsername, // <-- CHANGE from selectedUserId
   onSelect,
   isLoading = false,
 }: OnlineUsersListProps) {
@@ -124,19 +124,19 @@ export default function OnlineUsersList({
           <span className="ml-1 text-gray-400">- {items.length}</span>
         </h4>
         <div className="space-y-1">
-          {items.map((user, idx) => {
-            const isSelected = selectedUserId === user.id;
+          {items.map((user) => {
+            // ...
+            const isSelected = selectedUsername === user.name; // <-- CORRECT (compares usernames)
+            // ...
             const disabled = user.isSelf;
             const key = `${user.id ?? user.name}:${idx}`;
             return (
               <button
-                type="button"
-                key={key}
-                onClick={() => handleSelect(user)}
+                key={user.id}
+                onClick={() => onSelect(user.isSelf ? null : user.name)}
                 disabled={disabled}
-                className={`w-full flex items-center space-x-3 p-2 rounded-lg transition-colors ${
-                  isSelected ? 'bg-blue-50 border border-blue-500' : 'hover:bg-gray-100'
-                } ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
+                className={`w-full flex items-center space-x-3 p-2 rounded-lg transition-colors ${isSelected ? 'bg-blue-50 border border-blue-500' : 'hover:bg-gray-100'
+                  } ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
               >
                 <UserAvatar
                   name={user.name}

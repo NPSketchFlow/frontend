@@ -1,5 +1,6 @@
-import axios from 'axios';
-import { tokenManager } from './authService';
+// services/api.ts
+import axios from "axios";
+import { tokenManager } from "./authService";
 
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL
   ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/api`
@@ -9,6 +10,22 @@ const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL
 export const axiosInstance = axios.create({
   baseURL: API_BASE,
 });
+// --- ADD THIS ENTIRE CODE BLOCK ---
+api.interceptors.request.use(
+  (config) => {
+    // Get the token from storage
+    const token = tokenManager.getToken();
+    if (token) {
+      // Add the token to the request headers
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    // Handle request error
+    return Promise.reject(error);
+  }
+);
 
 // Attach JWT from tokenManager to every request if available
 axiosInstance.interceptors.request.use((config) => {
@@ -148,7 +165,7 @@ export const getVoiceConversation = async (participantA: string, participantB: s
 };
 
 export const getUsers = async () => {
-  const res = await axiosInstance.get<UserResponse[]>('/users');
+  const res = await api.get<UserResponse[]>("/auth/users"); // <-- NEW
   return res.data;
 };
 
