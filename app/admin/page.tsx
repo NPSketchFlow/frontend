@@ -242,10 +242,10 @@ export default function AdminDashboard() {
                 🔒 SSL/TLS Enabled
               </div>
               <button
-                onClick={() => router.push('/')}
+                onClick={() => router.push('http://localhost:3000')}
                 className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
               >
-                Back to App
+                Logout
               </button>
             </div>
           </div>
