@@ -11,6 +11,7 @@ export default function Home() {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
+  const [redirectingAdmin, setRedirectingAdmin] = useState(false);
 
   useEffect(() => {
     // Check if user is authenticated
@@ -22,6 +23,15 @@ export default function Home() {
       router.push('/auth');
     } else {
       setUser(userData);
+
+      // Check if user has admin role and redirect to admin dashboard
+      if (userData.roles && userData.roles.includes('ROLE_ADMIN')) {
+        console.log('Admin user detected, redirecting to admin dashboard...');
+        setRedirectingAdmin(true);
+        router.push('/admin');
+        return;
+      }
+
       setIsLoading(false);
     }
   }, [router]);
@@ -31,7 +41,7 @@ export default function Home() {
     router.push('/auth');
   };
 
-  if (isLoading) {
+  if (isLoading || redirectingAdmin) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 flex items-center justify-center">
         <div className="text-center">
