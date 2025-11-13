@@ -1,5 +1,6 @@
 // services/api.ts
 import axios from "axios";
+import { tokenManager } from "./authService";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8080/api";
 
@@ -7,6 +8,22 @@ const api = axios.create({
   baseURL: API_BASE,
   withCredentials: true,
 });
+// --- ADD THIS ENTIRE CODE BLOCK ---
+api.interceptors.request.use(
+  (config) => {
+    // Get the token from storage
+    const token = tokenManager.getToken();
+    if (token) {
+      // Add the token to the request headers
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    // Handle request error
+    return Promise.reject(error);
+  }
+);
 
 export interface UploadVoiceResponse {
   status: string;
@@ -125,7 +142,7 @@ export const getVoiceConversation = async (participantA: string, participantB: s
 };
 
 export const getUsers = async () => {
-  const res = await api.get<UserResponse[]>("/users");
+  const res = await api.get<UserResponse[]>("/auth/users"); // <-- NEW
   return res.data;
 };
 

@@ -7,9 +7,9 @@ import { type UserResponse } from '../../services/api';
 
 interface OnlineUsersListProps {
   users: UserResponse[];
-  currentUserId: string;
-  selectedUserId: string | null;
-  onSelect: (userId: string | null) => void;
+  currentUserId: string; // Keep this
+  selectedUsername: string | null; // <-- CHANGE from selectedUserId
+  onSelect: (username: string | null) => void; // <-- CHANGE from userId
   isLoading?: boolean;
 }
 
@@ -62,7 +62,7 @@ const sectionLabel = (status: OnlineStatus): string => {
 export default function OnlineUsersList({
   users,
   currentUserId,
-  selectedUserId,
+  selectedUsername, // <-- CHANGE from selectedUserId
   onSelect,
   isLoading = false,
 }: OnlineUsersListProps) {
@@ -125,16 +125,17 @@ export default function OnlineUsersList({
         </h4>
         <div className="space-y-1">
           {items.map((user) => {
-            const isSelected = selectedUserId === user.id;
+            // ...
+            const isSelected = selectedUsername === user.name; // <-- CORRECT (compares usernames)
+            // ...
             const disabled = user.isSelf;
             return (
               <button
                 key={user.id}
-                onClick={() => handleSelect(user)}
+                onClick={() => onSelect(user.isSelf ? null : user.name)}
                 disabled={disabled}
-                className={`w-full flex items-center space-x-3 p-2 rounded-lg transition-colors ${
-                  isSelected ? 'bg-blue-50 border border-blue-500' : 'hover:bg-gray-100'
-                } ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
+                className={`w-full flex items-center space-x-3 p-2 rounded-lg transition-colors ${isSelected ? 'bg-blue-50 border border-blue-500' : 'hover:bg-gray-100'
+                  } ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
               >
                 <UserAvatar
                   name={user.name}
