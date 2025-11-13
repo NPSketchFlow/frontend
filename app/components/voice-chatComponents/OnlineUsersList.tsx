@@ -124,12 +124,14 @@ export default function OnlineUsersList({
           <span className="ml-1 text-gray-400">- {items.length}</span>
         </h4>
         <div className="space-y-1">
-          {items.map((user) => {
+          {items.map((user, idx) => {
             const isSelected = selectedUserId === user.id;
             const disabled = user.isSelf;
+            const key = `${user.id ?? user.name}:${idx}`;
             return (
               <button
-                key={user.id}
+                type="button"
+                key={key}
                 onClick={() => handleSelect(user)}
                 disabled={disabled}
                 className={`w-full flex items-center space-x-3 p-2 rounded-lg transition-colors ${

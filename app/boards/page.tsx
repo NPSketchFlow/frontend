@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Plus, Users, Trash2, Clock, ExternalLink, Loader2 } from 'lucide-react';
 import { whiteboardAPI } from '../services/whiteboardService';
 import { tokenManager } from '../services/authService';
+import SideBar from '../components/layout/SideBar';
 
 interface Board {
   sessionId: string;
@@ -110,7 +111,7 @@ export default function BoardsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+          <div className="min-h-screen bg-linear-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="w-12 h-12 animate-spin text-purple-400 mx-auto mb-4" />
           <p className="text-white text-lg">Loading boards...</p>
@@ -120,7 +121,9 @@ export default function BoardsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
+    <div className="min-h-screen bg-linear-to-br from-slate-900 via-purple-900 to-slate-900">
+      <SideBar />
+      <div className="ml-64">
       {/* Header */}
       <div className="bg-slate-800/50 backdrop-blur-sm border-b border-slate-700">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -140,7 +143,7 @@ export default function BoardsPage() {
               </button>
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-lg transition-all shadow-lg hover:shadow-purple-500/50"
+                   className="flex items-center gap-2 px-6 py-2 bg-linear-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-lg transition-all shadow-lg hover:shadow-purple-500/50"
               >
                 <Plus className="w-5 h-5" />
                 New Board
@@ -164,7 +167,7 @@ export default function BoardsPage() {
               </p>
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-lg transition-all"
+                   className="px-6 py-3 bg-linear-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold rounded-lg transition-all"
               >
                 Create First Board
               </button>
@@ -259,7 +262,7 @@ export default function BoardsPage() {
               <button
                 onClick={handleCreateBoard}
                 disabled={isCreating || !newBoardName.trim()}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-linear-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg transition-all font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isCreating ? (
                   <>
@@ -277,6 +280,7 @@ export default function BoardsPage() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

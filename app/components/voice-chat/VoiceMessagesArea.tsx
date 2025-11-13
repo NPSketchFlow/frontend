@@ -126,6 +126,11 @@ export default function VoiceMessagesArea({
         <p className="text-sm text-gray-500 mt-1">
           {selectedUserId ? `${messages.length} message${messages.length !== 1 ? 's' : ''}` : 'Select a recipient to begin'}
         </p>
+        {selectedUser && (
+          <div className="mt-3 px-3 py-2 bg-blue-50 border border-blue-100 rounded text-sm text-blue-800">
+            Messages and recordings here are scoped to <strong>{selectedUser.username}</strong>. Any recording you send will go to this user.
+          </div>
+        )}
       </div>
 
       <div
