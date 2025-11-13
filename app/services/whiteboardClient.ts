@@ -193,6 +193,15 @@ export class WhiteboardSessionManager {
         }
       }
     });
+    this.ws.on('CHAT_MESSAGE', (message: WebSocketMessage) => {
+      console.log('Chat message received:', message.messageContent);
+      // Find the handler registered by ChatPanel.tsx
+      const handler = this.messageHandlers.get('CHAT_MESSAGE');
+      if (handler) {
+        // Pass the full message to ChatPanel's 'handleChatMessage'
+        handler(message);
+      }
+    });
   }
 
   // Register event handlers
@@ -256,6 +265,11 @@ export class WhiteboardSessionManager {
       await whiteboardAPI.clearCanvas(this.sessionId);
     } catch (error) {
       console.error('Failed to clear canvas on backend:', error);
+    }
+  }
+  sendChatMessage(message: string) {
+    if (this.ws?.isConnected()) {
+      this.ws.sendChatMessage(message);
     }
   }
 

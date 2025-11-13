@@ -34,12 +34,13 @@ export interface DrawingAction {
 }
 
 export interface WebSocketMessage {
-  type: 'JOIN' | 'DRAW' | 'CLEAR' | 'CURSOR_MOVE' | 'TOOL_CHANGE' | 'LEAVE' | 'USER_JOINED' | 'USER_LEFT';
+  type: 'JOIN' | 'DRAW' | 'CLEAR' | 'CURSOR_MOVE' | 'TOOL_CHANGE' | 'LEAVE' | 'USER_JOINED' | 'USER_LEFT'| 'CHAT_MESSAGE';
   userId: string;
   username?: string;
   avatar?: string;
   tool?: string;
   color?: string;
+  messageContent?: string;
   coordinates?: {
     points?: { x: number; y: number }[];
     start?: { x: number; y: number };
@@ -397,6 +398,14 @@ export class WhiteboardWebSocket {
     this.sendMessage({
       type: 'CLEAR',
       userId: this.userId,
+    });
+  }
+  sendChatMessage(message: string) {
+    this.sendMessage({
+      type: 'CHAT_MESSAGE',
+      userId: this.userId,
+      username: this.username, // Send our username
+      messageContent: message,
     });
   }
 

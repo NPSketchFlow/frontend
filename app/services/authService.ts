@@ -108,6 +108,40 @@ export const authAPI = {
 
     return await response.json();
   },
+
+  updateProfile: async (
+    data: { fullName?: string; avatar?: string },
+    token: string
+  ): Promise<AuthResponse> => {
+    const response = await fetch(`${BACKEND_URL}/api/auth/me`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+      throw new Error(responseData.error || 'Profile update failed');
+    }
+
+    // IMPORTANT: Update the user data in localStorage
+    const updatedUser = {
+      id: responseData.id,
+      username: responseData.username,
+      email: responseData.email,
+      fullName: responseData.fullName,
+      avatar: responseData.avatar,
+      roles: responseData.roles,
+    };
+    tokenManager.setUser(updatedUser);
+
+    // We return AuthResponse-like data
+    return { ...responseData, token };
+  },
 };
 
 // Token Management
