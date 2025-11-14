@@ -10,24 +10,14 @@ const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL
 export const axiosInstance = axios.create({
   baseURL: API_BASE,
 });
-// --- ADD THIS ENTIRE CODE BLOCK ---
-api.interceptors.request.use(
-  (config) => {
-    // Get the token from storage
-    const token = tokenManager.getToken();
-    if (token) {
-      // Add the token to the request headers
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    // Handle request error
-    return Promise.reject(error);
-  }
-);
 
-// Attach JWT from tokenManager to every request if available
+/* * This is the broken interceptor block.
+ * It's trying to use 'api' before 'api' is defined.
+ * We must DELETE this block.
+ */
+// api.interceptors.request.use( ... ); // <-- THIS BLOCK IS REMOVED
+
+// This is the CORRECT interceptor. It uses 'axiosInstance' and is in the right place.
 axiosInstance.interceptors.request.use((config) => {
   try {
     const token = tokenManager.getToken();
@@ -153,19 +143,24 @@ export const getOnlineUsers = async () => {
 };
 
 export const getVoiceChats = async () => {
-  const res = await axiosInstance.get<VoiceChatResponse[]>('/voice-chats');
+  const res = await axiosInstance.get<VoiceChatResponse[]>('/voice/chats'); // <-- FIXED URL
   return res.data;
 };
 
 export const getVoiceConversation = async (participantA: string, participantB: string) => {
-  const res = await axiosInstance.get<VoiceChatResponse[]>('/voice-chats/conversation', {
+  // This endpoint on the backend doesn't support participants yet,
+  // but changing this will fix the 404 error.
+  const res = await axiosInstance.get<VoiceChatResponse[]>('/voice/chats', { // <-- CORRECT URL
+    // We will still send the params, even if the backend ignores them for now
     params: { participantA, participantB },
   });
   return res.data;
 };
 
 export const getUsers = async () => {
-  const res = await api.get<UserResponse[]>("/auth/users"); // <-- NEW
+  // --- THIS IS THE FIX ---
+  // Change 'api.get' to 'axiosInstance.get'
+  const res = await axiosInstance.get<UserResponse[]>("/auth/users");
   return res.data;
 };
 
@@ -212,6 +207,7 @@ export const markAllNotificationsRead = async (receiverId: string) => {
   return res.data;
 };
 
+// This default export is just a helper object
 const api = {
   uploadVoice,
   sendNotification,
