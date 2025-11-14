@@ -26,9 +26,9 @@ const statusColors = {
 };
 
 const statusSizes = {
-  sm: 'w-2 h-2',
-  md: 'w-2.5 h-2.5',
-  lg: 'w-3 h-3',
+  sm: 'w-2.5 h-2.5',
+  md: 'w-3 h-3',
+  lg: 'w-3.5 h-3.5',
 };
 
 export default function UserAvatar({
@@ -63,7 +63,10 @@ export default function UserAvatar({
       </div>
       {showStatus && (
         <span
-          className={`absolute bottom-0 right-0 ${statusSizes[size]} ${statusColors[status]} rounded-full border-2 border-white`}
+          title={status}
+          role="status"
+          aria-label={`User is ${status}`}
+          className={`absolute bottom-0 right-0 ${statusSizes[size]} ${statusColors[status]} rounded-full border-2 border-white ring ring-white`}
         />
       )}
     </div>

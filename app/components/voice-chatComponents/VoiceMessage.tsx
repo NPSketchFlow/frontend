@@ -18,6 +18,7 @@ export interface VoiceMessageData {
   isOwn: boolean;
   isLoading?: boolean;
   downloadProgress?: number; // 0-100
+  isNew?: boolean;
 }
 
 interface VoiceMessageProps {
@@ -108,7 +109,7 @@ export default function VoiceMessage({ message }: VoiceMessageProps) {
 
   return (
     <div
-      className={`flex items-start space-x-3 mb-4 ${
+      className={`w-full flex items-start space-x-3 mb-4 ${
         message.isOwn ? 'flex-row-reverse space-x-reverse' : ''
       }`}
     >
@@ -140,7 +141,7 @@ export default function VoiceMessage({ message }: VoiceMessageProps) {
             message.isOwn
               ? 'bg-blue-600 text-white'
               : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
-          } ${message.isLoading ? 'opacity-50' : ''}`}
+          } ${message.isLoading ? 'opacity-50' : ''} ${message.isNew ? 'ring-2 ring-yellow-300 animate-pulse' : ''}`}
         >
           {message.isLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-20 rounded-2xl">

@@ -62,21 +62,38 @@ export const authAPI = {
 
   // Login user
   login: async (data: LoginRequest): Promise<AuthResponse> => {
-    const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
 
-    const responseData = await response.json();
+      // Network-level failures will throw before we get here
+      let responseData: any = null;
+      try {
+        responseData = await response.json();
+      } catch (e) {
+        // If server returned non-JSON or empty body
+        responseData = null;
+      }
 
-    if (!response.ok) {
-      throw new Error(responseData.error || 'Login failed');
+      if (!response.ok) {
+        const serverMessage = responseData?.error ?? responseData?.message ?? `HTTP ${response.status}`;
+        throw new Error(`Login failed: ${serverMessage}`);
+      }
+
+      return responseData as AuthResponse;
+    } catch (err: any) {
+      // Surface a clearer message for network / CORS errors
+      if (err instanceof TypeError) {
+        // Commonly thrown for network failure / blocked by CORS / mixed-content
+        throw new Error(`Network error while contacting ${BACKEND_URL}: ${err.message}`);
+      }
+      throw err;
     }
-
-    return responseData;
   },
 
   // Get current user
@@ -142,12 +159,24 @@ export const tokenManager = {
   setUser: (user: User): void => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('user', JSON.stringify(user));
+      try {
+        const ev = new CustomEvent('auth-updated', { detail: user });
+        window.dispatchEvent(ev);
+      } catch {
+        // ignore
+      }
     }
   },
 
   removeUser: (): void => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('user');
+      try {
+        const ev = new CustomEvent('auth-updated', { detail: null });
+        window.dispatchEvent(ev);
+      } catch {
+        // ignore
+      }
     }
   },
 
