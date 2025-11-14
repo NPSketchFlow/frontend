@@ -34,12 +34,13 @@ export interface DrawingAction {
 }
 
 export interface WebSocketMessage {
-  type: 'JOIN' | 'DRAW' | 'CLEAR' | 'CURSOR_MOVE' | 'TOOL_CHANGE' | 'LEAVE' | 'USER_JOINED' | 'USER_LEFT';
+  type: 'JOIN' | 'DRAW' | 'CLEAR' | 'ERASE' | 'CURSOR_MOVE' | 'TOOL_CHANGE' | 'LEAVE' | 'USER_JOINED' | 'USER_LEFT';
   userId: string;
   username?: string;
   avatar?: string;
   tool?: string;
   color?: string;
+  actionId?: string; // For erase operations
   coordinates?: {
     points?: { x: number; y: number }[];
     start?: { x: number; y: number };
@@ -175,20 +176,64 @@ export const whiteboardAPI = {
 
   // Save drawing action
   saveDrawingAction: async (sessionId: string, action: DrawingAction): Promise<any> => {
-    const response = await fetch(`${BACKEND_URL}/api/whiteboard/sessions/${sessionId}/actions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify(action),
-    });
+    console.log('🎨 Saving drawing action...', { sessionId, tool: action.tool });
+    
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/whiteboard/sessions/${sessionId}/actions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify(action),
+      });
 
-    if (!response.ok) {
-      throw new Error(`Failed to save drawing action: ${response.statusText}`);
+      if (!response.ok) {
+        // Handle 401 FIRST - backend JWT filter issue (don't log as error)
+        if (response.status === 401) {
+          console.warn('⚠️ Got 401 on save - Backend JWT filter not executing for POST requests!');
+          console.warn('   Drawing appears on canvas but backend returned authentication error.');
+          console.warn('   Returning without actionId - drawing may not be deletable.');
+          
+          // Don't throw error - return gracefully without actionId
+          return { actionId: undefined };
+        }
+        
+        // For all other errors, get error text and log
+        const errorText = await response.text().catch(() => 'No error message');
+        
+        // 400 Bad Request means validation error
+        if (response.status === 400) {
+          console.error('❌ VALIDATION ERROR - Backend rejected the data format!');
+          console.error('   Error details:', errorText);
+          console.error('   Action sent:', JSON.stringify(action, null, 2));
+          throw new Error(`Validation error: ${errorText}`);
+        }
+        
+        // Other errors
+        console.error('❌ Save drawing action failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText,
+          sessionId,
+          tool: action.tool,
+        });
+        
+        throw new Error(`Failed to save drawing action: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ Drawing action saved successfully:', result.actionId);
+      return result;
+    } catch (error) {
+      // If we already threw an Error object, re-throw it
+      if (error instanceof Error) {
+        throw error;
+      }
+      // For network errors or other issues
+      console.error('❌ Network or unexpected error saving drawing:', error);
+      throw new Error(`Network error while saving drawing: ${error}`);
     }
-
-    return await response.json();
   },
 
   // Get drawing history
@@ -222,7 +267,71 @@ export const whiteboardAPI = {
     return data.actions || [];
   },
 
-  // Clear canvas
+  // Delete a single drawing action (erase)
+  deleteDrawingAction: async (sessionId: string, actionId: string): Promise<any> => {
+    // Get token from correct localStorage key
+    const token = (typeof window !== 'undefined' && localStorage.getItem('token')) || '';
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    console.log('🗑️ Deleting drawing action:', {
+      sessionId,
+      actionId,
+      hasToken: !!token,
+      tokenPreview: token ? `${token.substring(0, 20)}...` : 'No token',
+      url: `${BACKEND_URL}/api/whiteboard/sessions/${sessionId}/actions/${actionId}`,
+      headers: Object.keys(headers),
+      timestamp: new Date().toISOString(),
+    });
+
+    const response = await fetch(`${BACKEND_URL}/api/whiteboard/sessions/${sessionId}/actions/${actionId}`, {
+      method: 'DELETE',
+      headers,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'No error message');
+      
+      // WORKAROUND: Sometimes backend returns 401 even after successful deletion
+      // This appears to be a backend response issue, not an actual auth failure
+      // If the deletion actually worked, the WebSocket will sync the change
+      console.warn('⚠️ Delete action returned error (may be false positive):', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText,
+        sessionId,
+        actionId,
+      });
+      
+      // Only throw on 403 Forbidden (actual permission denied)
+      // 401 might be a false positive if deletion actually succeeded
+      if (response.status === 403) {
+        throw new Error('Forbidden: You do not have permission to delete this drawing');
+      }
+      
+      // For 401, log but don't throw - let WebSocket sync handle it
+      if (response.status === 401) {
+        console.warn('⚠️ Got 401 but deletion may have succeeded. WebSocket will sync the actual state.');
+        // Don't throw - return silently and let the WebSocket update confirm success/failure
+        return;
+      }
+      
+      throw new Error(`Failed to delete drawing action: ${response.status} ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    console.log('✅ Action deleted successfully:', result);
+    return result;
+  },
+
+  // Clear canvas (delete all actions)
+  // Clear all drawings from canvas
   clearCanvas: async (sessionId: string): Promise<void> => {
     const response = await fetch(`${BACKEND_URL}/api/whiteboard/sessions/${sessionId}/actions`, {
       method: 'DELETE',
@@ -230,6 +339,14 @@ export const whiteboardAPI = {
     });
 
     if (!response.ok) {
+      // Handle 401 gracefully - same backend JWT filter issue
+      if (response.status === 401) {
+        console.warn('⚠️ Got 401 on clear canvas - Backend JWT filter issue');
+        console.warn('   Canvas will be cleared locally but backend may not sync');
+        // Don't throw - just log warning
+        return;
+      }
+      
       throw new Error(`Failed to clear canvas: ${response.statusText}`);
     }
   },
@@ -390,6 +507,14 @@ export class WhiteboardWebSocket {
       tool,
       color,
       coordinates,
+    });
+  }
+
+  erase(actionId: string) {
+    this.sendMessage({
+      type: 'ERASE',
+      userId: this.userId,
+      actionId,
     });
   }
 

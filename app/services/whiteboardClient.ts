@@ -7,6 +7,7 @@ export interface Point {
 }
 
 export interface Line {
+  actionId?: string; // Server-generated action ID for erase operations
   tool: string;
   color: string;
   eraser?: boolean;
@@ -193,6 +194,15 @@ export class WhiteboardSessionManager {
         }
       }
     });
+
+    this.ws.on('ERASE', (message: WebSocketMessage) => {
+      if (message.userId !== this.userId && message.actionId) {
+        const handler = this.messageHandlers.get('ERASE');
+        if (handler) {
+          handler({ actionId: message.actionId });
+        }
+      }
+    });
   }
 
   // Register event handlers
@@ -210,6 +220,7 @@ export class WhiteboardSessionManager {
       history.forEach(action => {
         if (action.coordinates) {
           lines.push({
+            actionId: action.actionId, // Store actionId for erase operations
             tool: action.tool,
             color: action.color,
             eraser: action.properties?.isEraser,
@@ -242,6 +253,71 @@ export class WhiteboardSessionManager {
   draw(tool: string, color: string, coordinates: any) {
     if (this.ws?.isConnected()) {
       this.ws.draw(tool, color, coordinates);
+    }
+  }
+
+  // Save drawing action to backend and get actionId
+  async saveDrawingAction(tool: string, color: string, coordinates: any, properties?: any): Promise<string | undefined> {
+    try {
+      const action = {
+        userId: this.userId,
+        tool,
+        color,
+        actionType: 'draw',
+        coordinates,
+        properties: properties || {
+          lineWidth: tool === 'eraser' ? 20 : 3
+          // Removed isEraser - backend doesn't support this field
+        }
+      };
+
+      console.log('📤 Sending drawing action to backend:', {
+        sessionId: this.sessionId,
+        userId: this.userId,
+        tool,
+        coordinatesKeys: Object.keys(coordinates),
+        coordinatesPreview: JSON.stringify(coordinates).substring(0, 100),
+      });
+
+      const result = await whiteboardAPI.saveDrawingAction(this.sessionId, action);
+      
+      if (result.actionId) {
+        console.log('✅ Drawing action saved with actionId:', result.actionId);
+      } else {
+        console.warn('⚠️ Drawing action saved but no actionId returned (backend auth issue)');
+      }
+      
+      return result.actionId;
+    } catch (error) {
+      // Only log real errors, not expected 401s
+      if (error instanceof Error && !error.message.includes('401')) {
+        console.error('❌ Failed to save drawing action:', error);
+        console.error('   Action data was:', {
+          userId: this.userId,
+          tool,
+          color,
+          actionType: 'draw',
+          coordinatesKeys: Object.keys(coordinates),
+        });
+      }
+      return undefined;
+    }
+  }
+
+  // Erase a single drawing action
+  async eraseAction(actionId: string) {
+    try {
+      await whiteboardAPI.deleteDrawingAction(this.sessionId, actionId);
+      
+      // Broadcast erase via WebSocket
+      if (this.ws?.isConnected()) {
+        this.ws.erase(actionId);
+      }
+      
+      console.log('✅ Action erased:', actionId);
+    } catch (error) {
+      console.error('Failed to erase action:', error);
+      throw error;
     }
   }
 

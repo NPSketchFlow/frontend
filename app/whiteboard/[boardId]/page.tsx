@@ -23,7 +23,7 @@ const COLORS = [
 
 const TOOLS = [
   { id: 'pen', icon: '✏️', label: 'Pen' },
-  { id: 'eraser', icon: '🧹', label: 'Eraser' },
+  { id: 'eraser', icon: '🧹', label: 'Eraser (Click to Delete)' },
   { id: 'circle', icon: '⭕', label: 'Circle' },
   { id: 'rectangle', icon: '⬜', label: 'Rectangle' },
   { id: 'line', icon: '➖', label: 'Line' },
@@ -157,6 +157,13 @@ export default function WhiteboardBoardPage() {
         manager.on('CLEAR', () => {
           if (isMounted) {
             setLines([]);
+          }
+        });
+
+        manager.on('ERASE', (data: { actionId: string }) => {
+          if (isMounted) {
+            console.log('🧹 Remote user erased action:', data.actionId);
+            setLines(prev => prev.filter(line => line.actionId !== data.actionId));
           }
         });
 
@@ -308,21 +315,160 @@ export default function WhiteboardBoardPage() {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     
+    // If eraser tool is selected, activate erase mode for click-to-delete
+    if (currentTool === 'eraser') {
+      eraseActionAtPosition(x, y);
+      return;
+    }
+    
     setIsDrawing(true);
     setStartPos({ x, y });
     
-    if (currentTool === 'pen' || currentTool === 'eraser') {
+    if (currentTool === 'pen') {
       setLines([...lines, {
         tool: 'pen',
-        color: currentTool === 'eraser' ? '#ffffff' : currentColor,
-        eraser: currentTool === 'eraser',
+        color: currentColor,
+        eraser: false,
         points: [{ x, y }]
       }]);
     }
   };
 
+  // Find and erase action at clicked position
+  const eraseActionAtPosition = async (x: number, y: number) => {
+    // Find action at position (check in reverse order for top-most)
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i];
+      
+      if (line.tool === 'pen' && line.points) {
+        // Check if click is near any point in the stroke
+        for (const point of line.points) {
+          const distance = Math.sqrt(
+            Math.pow(point.x - x, 2) + Math.pow(point.y - y, 2)
+          );
+          
+          if (distance < (line.eraser ? 20 : 10)) {
+            // Found the action to erase
+            if (line.actionId && sessionManagerRef.current) {
+              try {
+                await sessionManagerRef.current.eraseAction(line.actionId);
+                setLines(prev => prev.filter(l => l.actionId !== line.actionId));
+                console.log('✅ Erased action:', line.actionId);
+              } catch (error) {
+                console.error('Failed to erase action:', error);
+                
+                // Handle authentication errors
+                if (error instanceof Error && error.message.includes('Unauthorized')) {
+                  // Backend authorization issue - inform user
+                  alert('⚠️ Cannot delete this drawing. This might be a backend permission issue.\n\nPossible reasons:\n- You don\'t own this drawing\n- Backend DELETE endpoint needs configuration\n- Token doesn\'t have delete permissions');
+                } else {
+                  alert('Failed to erase. Please try again.');
+                }
+              }
+            }
+            return;
+          }
+        }
+      } else if (line.start && line.end) {
+        // Check if click is near shape
+        const isNearShape = checkIfNearShape(x, y, line);
+        if (isNearShape) {
+          if (line.actionId && sessionManagerRef.current) {
+            try {
+              await sessionManagerRef.current.eraseAction(line.actionId);
+              setLines(prev => prev.filter(l => l.actionId !== line.actionId));
+              console.log('✅ Erased action:', line.actionId);
+            } catch (error) {
+              console.error('Failed to erase action:', error);
+              
+              // Handle authentication errors
+              if (error instanceof Error && error.message.includes('Unauthorized')) {
+                // Backend authorization issue - inform user
+                alert('⚠️ Cannot delete this drawing. This might be a backend permission issue.\n\nPossible reasons:\n- You don\'t own this drawing\n- Backend DELETE endpoint needs configuration\n- Token doesn\'t have delete permissions');
+              } else {
+                alert('Failed to erase. Please try again.');
+              }
+            }
+          }
+          return;
+        }
+      }
+    }
+  };
+
+  // Check if point is near a shape
+  const checkIfNearShape = (x: number, y: number, line: Line): boolean => {
+    if (!line.start || !line.end) return false;
+    
+    const threshold = 10;
+    
+    if (line.tool === 'line' || line.tool === 'arrow') {
+      // Check distance from line segment
+      const distance = distanceToLineSegment(x, y, line.start.x, line.start.y, line.end.x, line.end.y);
+      return distance < threshold;
+    } else if (line.tool === 'rectangle') {
+      // Check if near rectangle edges
+      const left = Math.min(line.start.x, line.end.x);
+      const right = Math.max(line.start.x, line.end.x);
+      const top = Math.min(line.start.y, line.end.y);
+      const bottom = Math.max(line.start.y, line.end.y);
+      
+      return (
+        (x >= left - threshold && x <= right + threshold && 
+         (Math.abs(y - top) < threshold || Math.abs(y - bottom) < threshold)) ||
+        (y >= top - threshold && y <= bottom + threshold && 
+         (Math.abs(x - left) < threshold || Math.abs(x - right) < threshold))
+      );
+    } else if (line.tool === 'circle') {
+      // Check if near circle perimeter
+      const radius = Math.sqrt(
+        Math.pow(line.end.x - line.start.x, 2) + 
+        Math.pow(line.end.y - line.start.y, 2)
+      );
+      const distance = Math.sqrt(
+        Math.pow(x - line.start.x, 2) + 
+        Math.pow(y - line.start.y, 2)
+      );
+      return Math.abs(distance - radius) < threshold;
+    }
+    
+    return false;
+  };
+
+  // Calculate distance from point to line segment
+  const distanceToLineSegment = (px: number, py: number, x1: number, y1: number, x2: number, y2: number): number => {
+    const A = px - x1;
+    const B = py - y1;
+    const C = x2 - x1;
+    const D = y2 - y1;
+    
+    const dot = A * C + B * D;
+    const lenSq = C * C + D * D;
+    let param = -1;
+    
+    if (lenSq !== 0) param = dot / lenSq;
+    
+    let xx, yy;
+    
+    if (param < 0) {
+      xx = x1;
+      yy = y1;
+    } else if (param > 1) {
+      xx = x2;
+      yy = y2;
+    } else {
+      xx = x1 + param * C;
+      yy = y1 + param * D;
+    }
+    
+    const dx = px - xx;
+    const dy = py - yy;
+    
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
   const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
+    if (!isDrawing || currentTool === 'eraser') return;
     
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -331,7 +477,7 @@ export default function WhiteboardBoardPage() {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     
-    if (currentTool === 'pen' || currentTool === 'eraser') {
+    if (currentTool === 'pen') {
       const newLines = [...lines];
       if (newLines[newLines.length - 1].points) {
         newLines[newLines.length - 1].points!.push({ x, y });
@@ -346,7 +492,7 @@ export default function WhiteboardBoardPage() {
     }
   };
 
-  const stopDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const stopDrawing = async (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return;
     
     const canvas = canvasRef.current;
@@ -363,13 +509,56 @@ export default function WhiteboardBoardPage() {
         start: startPos,
         end: { x, y }
       };
-      setLines([...lines, newLine]);
+      
+      // Save to backend and get actionId
+      if (sessionManagerRef.current) {
+        try {
+          const actionId = await sessionManagerRef.current.saveDrawingAction(
+            currentTool,
+            currentColor,
+            { start: startPos, end: { x, y } }
+          );
+          
+          // Add line with actionId to state
+          setLines(prev => [...prev, { ...newLine, actionId }]);
 
-      if (sessionManagerRef.current?.isConnected()) {
-        sessionManagerRef.current.draw(currentTool, currentColor, {
-          start: startPos,
-          end: { x, y }
-        });
+          // Broadcast via WebSocket
+          if (sessionManagerRef.current.isConnected()) {
+            sessionManagerRef.current.draw(currentTool, currentColor, {
+              start: startPos,
+              end: { x, y }
+            });
+          }
+        } catch (error) {
+          console.error('Failed to save drawing action:', error);
+        }
+      }
+    } else if (currentTool === 'pen' && lines.length > 0) {
+      // Save pen stroke to backend
+      const currentLine = lines[lines.length - 1];
+      if (sessionManagerRef.current && currentLine.points) {
+        try {
+          const actionId = await sessionManagerRef.current.saveDrawingAction(
+            'pen',
+            currentColor,
+            { points: currentLine.points },
+            {
+              lineWidth: 3
+              // Removed isEraser - backend doesn't support this field
+            }
+          );
+          
+          // Update the line with actionId
+          setLines(prev => {
+            const newLines = [...prev];
+            if (newLines.length > 0) {
+              newLines[newLines.length - 1].actionId = actionId;
+            }
+            return newLines;
+          });
+        } catch (error) {
+          console.error('Failed to save drawing action:', error);
+        }
       }
     }
     
@@ -553,13 +742,24 @@ export default function WhiteboardBoardPage() {
 
         {/* Canvas Area */}
         <main className="flex-1 relative overflow-hidden">
+          {/* Eraser Mode Indicator */}
+          {currentTool === 'eraser' && (
+            <div className="absolute top-6 left-1/2 transform -translate-x-1/2 z-10 bg-orange-600/90 backdrop-blur-sm px-6 py-3 rounded-xl shadow-lg border border-orange-500 flex items-center gap-3">
+              <span className="text-2xl">🧹</span>
+              <div>
+                <p className="text-white font-semibold text-sm">Eraser Mode Active</p>
+                <p className="text-orange-200 text-xs">Click on any drawing to erase it</p>
+              </div>
+            </div>
+          )}
+          
           <canvas
             ref={canvasRef}
             onMouseDown={startDrawing}
             onMouseMove={draw}
             onMouseUp={stopDrawing}
             onMouseLeave={stopDrawing}
-            className="w-full h-full cursor-crosshair bg-white"
+            className={`w-full h-full bg-white ${currentTool === 'eraser' ? 'cursor-pointer' : 'cursor-crosshair'}`}
             style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'center' }}
           />
 
