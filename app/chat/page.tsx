@@ -55,7 +55,7 @@ export default function ChatPage() {
       try {
         const allUsers = await getUsers();
         // Filter out the current user from the list
-        setUsers(allUsers.filter(u => u.username !== userData.username));
+        setUsers(allUsers.filter((u: any) => u.username !== userData.username));
       } catch (error) {
         console.error("Failed to load users", error);
       } finally {
